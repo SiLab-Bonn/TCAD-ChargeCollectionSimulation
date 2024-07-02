@@ -5,3 +5,5 @@ The folder "Example" contains a compressed TCAD project. Download the file and p
 You can also use the scripts in the folder "Scripts" to create your own simulaiton project.
 
 A detailed introduction will be found in the Wiki.
+
+* Note: The provided semiconductor processing parameters are merely dummy/typical values. Please use the suitable parameters for your own project.
