@@ -1,0 +1,33 @@
+# ====== General Settings ======
+# This file serves as the script for setting up the numerical simulation
+#	parameters for the SPROCESS.
+# Source this file in the SPROCESS command file for using it.
+# ==============================
+
+# Parameters for numerical simulations
+math numThreadsMC= 8
+math numThreadsPardiso= 10
+math numThreadsSnMesh= 10
+math numThreadsILS= 10
+pdbSet Math diffuse 2D ILS.hpc.mode 4
+math numThreadsBoxMethod= 10
+math numThreadsSnMesh= 10
+math numThreadsDeatomize= 10
+math numThreadsInterp= 10
+
+# Process and mesh related parameters
+pdbSetBoolean Mechanics StressHistory 0
+pdbSet Grid Use.MovingMesh							0
+pdbSet Oxide Grid perp.add.dist 					1e-6
+pdbSet Grid Remove.Dist								1e-6
+pdbSet Grid MovingMesh Remove.Dist.On.Interface 	1e-6
+pdbSet Grid Set.Min.Edge							1	;# save the minimum edge length to tdr file
+pdbSet Grid sMesh 									1
+pdbSet Grid SnMesh 			UseLines 				1	;# keep the user defined grid
+pdbSet Grid SnMesh 			MaxPoints				5000000
+pdbSet Grid SnMesh 			DelaunayType 			boxmethod
+pdbSet Grid SnMesh 			min.normal.size 		0.005
+pdbSet Grid SnMesh 			normal.growth.ratio.2d 	2
+
+#pdbSet ImplantData DoseControl BeamDose
+#implant tables= Taurus

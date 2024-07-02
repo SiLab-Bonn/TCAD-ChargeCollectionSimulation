@@ -1,0 +1,488 @@
+# ===============================================================================
+#		Lib file
+#
+#
+# ===============================================================================
+
+#	++++++++++++ some settings +++++++++++
+#	set the implantation dose as the beam dose
+pdbSetBoolean AutoRefBox	BeamDose	1
+#	set the implantation method --> use table method as default
+pdbSetString ImplantData Method tables
+#	+++++++++++++ Tools +++++++++++++
+
+# A function to export the intermediat (2D/3D)e TDR in an ordered manner
+# Need to type "fset node @node@" in the sprocess script
+#	useage: after the certain step need to be illustrated, use "Plot "<filename>" "
+fset count 0
+proc Plot { {state ""} } {
+	global node
+	global count
+	if { $count < 10 } {
+		struct FullD tdr= n${node}_0${count}_${state}
+	} else {
+		struct FullD tdr= n${node}_${count}_${state}
+	}
+	fset count [expr $count+1]
+}	;# end proc Plot
+
+# Plot the boundary files of the structure. faster than the complete TDR, for 
+#	quick inspections of the structure changes
+proc PlotBND { {state ""} } {
+	global node
+	global count
+	if { $count < 10 } {
+		struct FullD tdr.bnd= n${node}_0${count}_${state}
+	} else {
+		struct FullD tdr.bnd= n${node}_${count}_${state}
+	}
+	fset count [expr $count+1]
+}	;# end proc PlotBND
+
+# Plot the Plx file, at a certain y position to probe different fields
+proc PLX {{name ""} {position ""}} {
+	global node
+	global count
+	if {$count < 10} {
+		WritePlx n${node}_0${count}_${name}.plx y= $position
+	} else {
+		WritePlx n${node}_${count}_${name}.plx y= $position
+	}
+	fset count [expr $count+1]
+} 	;# end proc PLX
+
+
+# Clock -- Return system time: MM/DD/YYYY-HH:MM:SS
+proc TIME {} {
+	set sysTIME 	[clock seconds]
+	set T			[clock format $sysTIME -format %D-%H:%M:%S]
+	return $T
+}	;# end proc TIME
+
+# Write personal log file. Defalt file logg.txt
+proc LOGit {{statement " "}} {
+	set LOGG [open logg.txt a]
+	set t [TIME]
+	puts $LOGG "${t} -> ${statement}"
+	close $LOGG
+}	;# end proc LOGit
+
+# The "range" function which creates a list of integers between specified values
+#	The function consists of two parts: criteria of the cases of "start", "end" 
+#	and "step"; the main function of creating the list 
+
+proc rangeLen {start end step} {
+	# RangeLen(start, end, step)
+	# 1. if step = 0
+	# 2.     then ERROR
+	# 3. if start = end
+ 	# 4.     then return 0
+ 	# 5. if step > 0 AND start > end
+ 	# 6.     then ERROR
+ 	# 7. if setp < 0 AND end > start
+ 	# 8.     then ERROR
+ 	# 9. return 1+((ABS(end-start)-1)/ABS(step))
+ 	if {$step == 0} {return -1}
+    if {$start == $end} {return 0}
+    if {$step > 0 && $start > $end} {return -1}
+    if {$step < 0 && $end > $start} {return -1}
+    expr {1+((abs($end-$start)-1)/abs($step))}
+ }	;# end proc rangeLen
+
+proc Range args {
+	# Range(start, end, step)
+	# 1. result <- EMPTY LIST
+	# 2. len <- RangeLen(start, end, step)
+	# 3. for i <- 0 to len - 1
+	# 4.     result.append(start+(i*step))
+	# 6. return result
+	
+	# Check arity
+    set l [llength $args]
+    if {$l == 1} {
+        set start 0
+        set step 1
+        set end [lindex $args 0]
+    } elseif {$l == 2} {
+        set step 1
+        foreach {start end} $args break
+    } elseif {$l == 3} {
+        foreach {start end step} $args break
+    } else {
+        error {wrong # of args: should be "range ?start? end ?step?"}
+    }
+
+    # Generate the range
+    set rlen [rangeLen $start $end $step]
+    if {$rlen == -1} {
+        error {invalid (infinite?) range specified}
+    }
+    set result {}
+    for {set i 0} {$i < $rlen} {incr i} {
+        lappend result [expr {$start+($i*$step)}]
+    }
+    return $result
+}	;# end proc Range
+
+
+#	++++++++++ Information Extraction +++++++++++
+
+# orders the list and eliminates duplicates
+proc OrderList {inlist} {
+	set outlist [lindex $inlist 0]
+	
+	foreach initem $inlist {
+		set outind 0
+		
+		foreach outitem $outlist {
+			if {$initem <= $outitem} {
+				break
+			}
+			incr outind
+		}
+		
+		if {$outitem == $initem} {
+			continue
+		} else {
+			set outlist [linsert $outlist $outind $initem]
+		}
+	}
+		return $outlist
+}	;#---- end proc OrderList
+
+
+proc Dimension {} {
+# Determin the dimension of simulation domain
+
+	set coord [lindex [bound silicon] 0]	;# Get coordinates for silicon boundary
+											;# Not working for 3D
+	if {[llength $coord]== 4} {set dim 1} else {set dim 2}
+	# Determin the dimension of the simulation domain.
+	# It's done by evaluating the size of the coordinates list.
+	# For one dimensional structure, the boundary is defined by two points, i.e.
+	# 	2 x-values & 2 y-values.
+	# More points are needed for 2 dimensions
+	
+	return $dim
+}	;# end proc Dimension
+
+
+proc GetBoundingBox {reg mat} {
+# Acquire the bounding Box (x and y boundaries). The values are in the
+#	"-sp coordinate" system, i.e. the corrd. system in sprocess.
+
+	mater add name= TMP		;# add new material to a global list
+							;# can return all materials in the current structure
+	region name= $reg change.material TMP !zero.data
+	# Change the material in selected region to TMP, WITHOUT touching the data
+	#	in the region (via "!zero.data").
+	
+	set coord [lindex [bound TMP] 0]		;# Get boundry points
+	region name= $reg change.material $mat !zero.data
+	# Change the material again without touching data, don't understand the
+	#	purpose.
+	
+	set X [list]
+	set Y [list]
+	
+	set i 0
+	foreach el $coord {
+		if {[expr $i%2]} {lappend X $el} else {lappend Y $el} 
+		incr i
+	}
+	# Separate and rearrange the x- and y- corrdinate values to lists
+	
+	set xmin [lindex $X 0]		;# Determine the maximum and minimum value of
+	set xmax [lindex $X 1]		;#	the corrdinate (Boundaries).
+	set ymin [lindex $Y 0]		;# These commands, firstly, set starting values.
+	set ymax [lindex $Y 1]
+	
+	foreach x $X y $Y {
+		if {$x < $xmin} {set xmin $x}		;# Loop over all elements and
+		if {$x > $xmax} {set xmax $x}		;# 	converge to the extremum.
+		if {$y < $ymin} {set ymin $y}
+		if {$y > $ymax} {set ymax $y}
+	} 
+	return [list $xmin $ymin $xmax $ymax]
+}	;# end proc GetBoundingBox
+
+proc RefBoxPlacement {spe en dose tilt} {
+	
+	set spe [alias $spe]
+	
+	global ExecuteOn
+	if {! $ExecuteOn} {return}
+	
+	if {[Dimension] == 1} {
+		LogFile "still in 1D --> placing 1D ref.box."
+		RefBoxPlacement1D $spe $en $dose $tilt
+		return
+	}
+	# global Nsig NsigLat NprimV NprimH RefName RBGlobalCounter
+	
+	set RefName			[pdbGetString AutRefBox RefName]
+	set RBGlobalCounter	[pdbGetDouble AutRefBox RBGlobalCounter]
+	
+	set NsigPrim		[pdbGetDouble AutRefBox NsigPrim]
+	set NsigLat			[pdbGetDouble AutRefBox NsigLat]
+	
+	set NsubdivPrim		[pdbGetDouble AutRefBox NsubdivPrim]
+	set NsubdivLat		[pdbGetDouble AutRefBox NsubdivLat]
+	
+	set STIMask			[pdbGetBoolean AutRefBox STIMask]
+	
+	grid rename
+	
+	incr	RBGlobalCounter
+	pdbSetDouble AutRefBox RBGlobalCounter $RBGlobalCounter
+	LogFile "increased RBGlobal: $RBGlobalCounter"
+	
+	set tilt 	[expr double($tilt)]
+	set en		[expr double($en)]
+	
+	set pi		[expr 4.0 * atan(1.0)]
+	set tilt	[expr $tilt * $pi / 180.0]
+	
+	set MaskMat		{Photoresist PolySilicon TEOS}
+	set MaskCoord 	[list]
+
+	foreach mat $MaskMat {
+		set maskcoord [GetMaskingMaterialCoordinate $mat]
+		foreach pos $maskcoord {
+			lappend MaskCoord $pos
+		}
+		
+	} 
+	
+	if {$STIMask} {
+		set sticoord [STIMaskCoordinate [pdbGetDouble AutRefBox STIcut]]
+		foreach pos $sticoord {
+			lappend MaskCoord $pos
+		}
+	}
+	
+	set domcoord	[GetDomainCoordinate]
+	lappend MaskCoord	[lindex $domcoord 0]
+	lappend MaskCoord	[lindex $domcoord 1]
+	
+	set MaskCoord	[OrderList $MaskCoord]
+	set MaskCoord	[eliminate_short_segments $MaskCoord 0.01]
+	
+	set LeftBound	[lindex $MaskCoord 0]
+	set RightBound	[lindex $MaskCoord end]
+	
+	set N			[llength $MaskCoord]
+	set RBoxCounter 0
+	
+	set acc 0.001
+	
+	puts "Mask $MaskCoord"
+	
+	for {set j 1 ; set i 0} {$j < $N} {incr i ; incr j} {
+		set LeftRBflag 	0
+		set RightRBflag 0
+		set PrimRBflag	0
+		
+		set yleft	[lindex $MaskCoord $i]
+		set yright	[lindex $MaskCoord $j]
+		set ycut	[expr ($yleft + $yright) / 2.0]
+		LogFile		"cutting @ Y=$ycut"
+		
+		set LayList	[layer_info $ycut]
+		set prop	[get_Xsection_implant_prop $LayList $spe $en $dose $tilt]
+		set Deff  	[lindex $prop 0]
+		set RpSi	[lindex $prop 1]
+		set SigmaSi	[lindex $prop 2]
+		set SiTop	[lindex [lindex $LayList end] 0]
+		LogFile		"X-section properties: Deff=$Deff, RpSi=$RpSi, SigmaSi=$SigmaSi"
+		
+		#---- checking stopping power
+		set PTh [expr $RpSi + $NsigPrim * $SigmaSi]
+		LogFile "PenetrationThreshold=$PTh"
+		LogFile "SiTop=$SiTop"
+		
+		if {[expr $Deff / cos($tilt)] < $PTh} {
+			set LeftRBflag	1
+			set RightRBflag	1
+			set PromRBflag	1
+		} else {
+			LogFile "segment ($yleft $yright)"
+			LogFile "engouh stopping power --> no RefBox needed"
+			continue
+		}
+		
+		if {$yleft == $LeftBound} {
+			set LeftRBflag 0
+		}
+		
+		if {$yright == $RightBound} {
+			set RightRBflag 0
+		}
+		
+		# ---- primary parameters
+		set xmin	$SiTop
+		set xmax	[expr $SiTop + $PTh * cos($tilt) - $Deff]		
+		set ymin	$yleft
+		set ymax	$yright
+		
+		set xmin	[expr $acc * round($xmin / $acc)]
+		set ymin	[expr $acc * round($ymin / $acc)]
+		set ymax	[expr $acc * round($ymax / $acc)]
+		
+		# ---- penetration length
+		set PenL 	[expr $xmax -$xmin]
+		LogFile		"PenetrationLength=$PenL"
+		if {$PenL < $SigmaSi} {
+			continue
+		}
+		
+		# ---- buried profiles check
+		if {[expr $xmax - 2.0 * $NsigPrim * $SigmaSi] > $xmin} {
+			set xmin [expr $xmax - 2.0 * $NsigPrim * $SigmaSi]
+		}
+		
+		set dx	[expr $SigmaSi * cos($tilt) / double($NsubdivPrim)]
+		set dy	[expr 100.0 * $dx]
+		set dx	[expr $acc * round($dx / $acc)]
+		set dy	[expr $acc * round($dy / $acc)]
+		
+		set dyLat	[expr $SigmaSi * cos($tilt) / double($NsubdivLat)]
+		set dyLat	[expr $acc * round($dyLat / $acc)]
+		
+		set offset	[expr $PenL * sin($tilt) + $NsigLat * $SigmaSi * cos($tilt)]
+		
+		# ---- left lateral parameters Y
+		set yminLatL [expr $ymin - $offset]
+		set ymaxLatL [expr $ymin + $offset]
+		set yminLatL [expr $acc * round($yminLatL / $acc)]
+		set ymaxLatL [expr $acc * round($ymaxLatL / $acc)]
+		
+		# --- right lateral parameters Y
+		
+		set yminLatR [expr $ymax - $offset]
+		set ymaxLatR [expr $ymax + $offset]
+		set yminLatR [expr $acc * round($yminLatR / $acc)]
+		set ymaxLatR [expr $acc * round($yminLatR / $acc)]
+		
+		# --- lateral parameters X
+		
+		set xminLat	$SiTop
+		set xmaxLat	$xmax
+		set xminLat	[expr $acc * round($xminLat / $acc)]
+		set xmaxLat [expr $acc * round($xmaxLat / $acc)]
+		
+		if {[expr $xmax -$xmin] <= $dx} {
+			set LeftRBflag	0
+			set RightRBflag 0
+			set PrimRBflag	0
+		}
+		
+		if {$PrimRBflag} {
+			incr RBoxCounter
+			# set RBname ${RefName}_${RBoxCounter}_${RBGlobalCounter}
+			# puts"***** $RBname"
+			LogFile "PRIMARY REFBOX \"${RefName}_${RBoxCounter}_${RBGlobalCounter}_PRIM\" IS PLACED"
+			LogFile "xtop = $xmin ; xbot = $xmax ; yleft = $ymin ; yright = $ymax" 
+			LogFile "dx = $dx ; dy = $dy"
+			set boxname ${RefName}_${RBoxCounter}_${RBGlobalCounter}_PRIM
+			refinebox name=$boxname min= "$xmin $ymin"   max= "$xmax $ymax"     xrefine= "$dx"   yrefine= "$dy" Silicon add 
+		}
+
+		if {$LeftRBflag} {
+			LogFile "LATERAL REFBOX \"${RefName}_${RBoxCounter}_${RBGlobalCounter}_LAT_LEFT\" IS PLACED (LEFT) ( $xmin $yminLatL ) ( $xmax $ymaxLatL ) dx=$dx dy=$dyLat"
+			set boxname ${RefName}_${RBoxCounter}_${RBGlobalCounter}_LAT_LEFT
+			refinebox name=$boxname min= "$xminLat $yminLatL"   max= "$xmaxLat $ymaxLatL"  xrefine= "$dx"  yrefine= "$dyLat" Silicon add 
+		}
+
+		if {$RightRBflag} {
+			LogFile "LATERAL REFBOX \"${RefName}_${RBoxCounter}_${RBGlobalCounter}_LAT_RIGHT\" IS PLACED (RIGHT) ( $xmin $yminLatR ) ( $xmax $ymaxLatR ) dx=$dx dy=$dyLat"
+			set boxname ${RefName}_${RBoxCounter}_${RBGlobalCounter}_LAT_RIGHT
+			refinebox name=$boxname min= "$xminLat $yminLatR"   max= "$xmaxLat $ymaxLatR"  xrefine= "$dx"  yrefine= "$dyLat" Silicon add 
+		} 
+
+	} 	;# end for
+}	;# end proc RefBoxPlacement
+
+proc Implant {IMPL} {
+	
+	global ExecuteOn
+	if {!$ExecuteOn} {return}
+	
+	global AutoRefine
+	
+	# Method for implant, the options can be chosen from the 
+	# 	selections. 	
+	# "tmc": switch to the Taurus Monte-Carlo method (TMC), no descreption is found 
+	# 	in the manual. According to some tests, the name is now changed to
+	#	"sentaurus.mc"
+
+	# "ctrim": switch to Monte-Carlo simulation of ion implantation using
+	#	the Crystal-TRIM method. 
+	set ImplantMethod [pdbGet ImplantData Method]
+	
+	# the command "bound" in "proc Dimension" is not available in 3D simulation.
+#	if {[Dimension]== 2} {
+#		set recoord [GetMaskingMaterialCoordinate Photoresist]
+#		set sicoord [GetDomainCoordinate]
+#		
+#		if {([lindex $recoord 0]== [lindex $sicoord 0]) && \
+#			([lindex $recoord 1] == [lindex $sicoord 1])} {
+#				LogFile "Resist covers entire structure: skipping implant refinemant"
+#				return
+#		}
+#	}
+	
+	if {$AutoRefine==1} {
+		foreach el $IMPL {
+			set spe 	[lindex $el 0]	;# Ion type for implantation
+			set en		[lindex $el 1]	;# Energy of Ion beam
+			set dose	[lindex $el 2]	;# Beam or Wafer dose
+			set tilt 	[lindex $el 3]	;# Tilt angle of the incoming beam
+			
+			# Add refine boxes according to the given parameters to the mesh grid.
+			# The geometry and placement of the refine box is determined by the
+			#	calculations via the function "RefBoxPlacement".
+			
+			RefBoxPlacement $spe $en $dose $tilt
+			
+			# Zhang: It's found that some of the refinement (e.g. DNW) is similar
+			#	to the "refinement near mask edges", which can be more easily specified 
+			#	with "refinebox" command.
+			#	However, it may be more useful for 3D simulation.
+			# Using customised refineboxes maybe easier for controlling profile.
+			# All customised refineboxes should be kept during process, since
+			#	the profies are recalculated for each step, so they will change
+			# 	if the refinebox is cleared.
+			# A final refinement for device simulations won't matter the profile.
+		}
+	
+		# Trigger the remesh
+	
+		grid remesh
+		refinebox remesh
+	}
+	
+	foreach el $IMPL {
+		set spe		[lindex $el 0]	;# Ion type for implantation
+		set en		[lindex $el 1]	;# Energy of Ion beam
+		set dose	[lindex $el 2]	;# Beam or Wafer dose
+		set tilt	[lindex $el 3]	;# Tilt angle of the incoming beam
+		set rot		[lindex $el 4]	;# Rotation angle of the wafer
+		
+		# here the mesh grid is not refined, perhaps due to the customised rotation
+		#	angle.
+		
+		# Set dose representation between beam dose and wafer dose
+		set BD ""
+		if {[pdbGetBoolean AutRefBox BeamDose]} {
+			set BD beam.dose
+		}
+		
+		# Select implantation method
+		if {[pdbGet ImplantData Method]== "tables"} {
+			implant $spe energy= $en dose= $dose tilt= $tilt rotation= $rot $BD
+		} else {
+			implant $spe energy= $en dose= $dose tilt= $tilt rotation= $rot $BD ${ImplantMethod}
+		}
+	}
+}	;# end proc Implant

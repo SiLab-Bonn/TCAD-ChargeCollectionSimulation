@@ -1,0 +1,65 @@
+# Load the library
+source ./ProcLib.fps
+
+# ====== Oxidation ======
+
+proc FormSTIandSCR {} {
+	# STI
+	deposit nitride isotropic thickness= 0.100
+	etch nitride anisotropic thickness= 0.120 mask=STI
+	etch silicon type= isotropic thickness=0.4
+	deposit oxide fill coord= 0
+	strip nitride  
+	
+	# screening oxide
+	deposit material= {Oxide} type= isotropic  rate= {1.0} time= 0.01
+}
+
+
+# ====== Implantation =====
+proc ImpNW {{dim ""}} {
+	set IMPL { \
+		{Phosphorus 380.0	2.0e13 7.0 -90.0} \
+		{Arsenic 	270.0	1.0e13 7.0 -90.0} \
+		{Arsenic 	100.0	2.0e13 7.0 -90.0} \
+	} 
+
+	Implant $IMPL
+}
+
+proc ImpNPLUS {{dim ""}} {
+	set IMPL { \
+		{Phosphorus 40.0	1.0e13 7.0 -90.0} \
+		{Arsenic 	50.0	2.0e15 7.0 -90.0} \
+	} 
+
+	Implant $IMPL
+
+}
+
+proc ImpPW {} {
+	set IMPL { \
+		{Boron 300.0	3.0e13 7.0 -90.0} \
+		{Boron 200.0	2.0e13 7.0 -90.0} \
+		{Boron 100.0	1.0e13 7.0 -90.0} \
+		{Boron 30.0		8.0e12 7.0 -90.0} \
+	} 
+	Implant $IMPL
+}
+
+proc ImpPPLUS {{dim ""}} {
+	set IMPL { \
+		{Boron 15.0	5.0e13 7.0 -90.0} \
+		{Boron 20.0	2.0e15 7.0 -90.0} \
+	} 
+	Implant $IMPL
+}
+
+# ====== Annealing ======
+
+proc Annealing {} {
+	temp_ramp name= tempramp_well time= 0.18666667 temp= 650.0 ramprate= 36.6071
+	temp_ramp name= tempramp_well time= 0.33333333 temp= 1060.0 ramprate= 0.0000
+	temp_ramp name= tempramp_well time= 0.14       temp= 1060.0 ramprate=-48.8095
+	diffuse temp_ramp= tempramp_well
+}
