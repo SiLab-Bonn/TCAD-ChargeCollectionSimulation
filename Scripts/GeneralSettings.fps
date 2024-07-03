@@ -30,7 +30,7 @@ pdbSet Grid SnMesh 			min.normal.size 		0.005
 pdbSet Grid SnMesh 			normal.growth.ratio.2d 	2
 
 #	set the implantation dose as the beam dose
-pdbSetBoolean AutoRefBox	BeamDose	1
+pdbSetBoolean AutRefBox	BeamDose	1
 #	set the implantation method --> use table method as default
 pdbSetString ImplantData Method tables
 

@@ -469,7 +469,7 @@ proc Implant {IMPL} {
 		
 		# Set dose representation between beam dose and wafer dose
 		set BD ""
-		if {[pdbGetBoolean AutoRefBox BeamDose]} {
+		if {[pdbGetBoolean AutRefBox BeamDose]} {
 			set BD beam.dose
 		}
 		
