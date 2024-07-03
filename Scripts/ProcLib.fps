@@ -4,11 +4,6 @@
 #
 # ===============================================================================
 
-#	++++++++++++ some settings +++++++++++
-#	set the implantation dose as the beam dose
-pdbSetBoolean AutoRefBox	BeamDose	1
-#	set the implantation method --> use table method as default
-pdbSetString ImplantData Method tables
 #	+++++++++++++ Tools +++++++++++++
 
 # A function to export the intermediat (2D/3D)e TDR in an ordered manner
@@ -474,7 +469,7 @@ proc Implant {IMPL} {
 		
 		# Set dose representation between beam dose and wafer dose
 		set BD ""
-		if {[pdbGetBoolean AutRefBox BeamDose]} {
+		if {[pdbGetBoolean AutoRefBox BeamDose]} {
 			set BD beam.dose
 		}
 		
