@@ -1,0 +1,75 @@
+# ==================================================================
+#			Process Data for Demonstration
+#    This process data file contains dummy processing data only for
+# demonstrating the structure of the file for the workflow, and does
+# not contain any data reflecting the actual processing data.
+# ==================================================================
+
+# Load the library
+source ./ProcLib.fps
+
+# ====== Oxidation ======
+# A typical STI thickness of 400 nm, using simple isotripic etch.
+proc FormSTIandSCR {} {
+	# STI
+	deposit nitride isotropic thickness= 0.100
+	etch nitride anisotropic thickness= 0.120 mask=STI
+	etch silicon type= isotropic thickness=0.4
+	deposit oxide fill coord= 0
+	strip nitride  
+	
+	# screening oxide
+	deposit material= {Oxide} type= isotropic  rate= {1.0} time= 0.01
+}
+
+
+# ====== Implantation =====
+
+# The format of defining each implantation step: {<IonType> <Energy> <Dose> <TiltAngle> <Rotation>}
+
+proc ImpNW {{dim ""}} {
+	set IMPL { \
+		{Phosphorus 	400.0	2.1e13 7.0 0.0} \
+		{Arsenic 	300.0	1.2e13 7.0 0.0} \
+		{Arsenic 	90.0	1.8e13 7.0 0.0} \
+	} 
+
+	Implant $IMPL
+}
+
+proc ImpNPLUS {{dim ""}} {
+	set IMPL { \
+		{Phosphorus 	45.0	1.2e13 7.0 -90.0} \
+		{Arsenic 	45.0	1.8e15 7.0 -90.0} \
+	} 
+
+	Implant $IMPL
+
+}
+
+proc ImpPW {} {
+	set IMPL { \
+		{Boron 350.0	3.2e13 7.0 0.0} \
+		{Boron 230.0	2.2e13 7.0 0.0} \
+		{Boron 120.0	1.5e13 7.0 0.0} \
+		{Boron 45.0	7.0e12 7.0 0.0} \
+	} 
+	Implant $IMPL
+}
+
+proc ImpPPLUS {{dim ""}} {
+	set IMPL { \
+		{Boron 12.0	5.2e13 7.0 0.0} \
+		{Boron 22.0	2.3e15 7.0 0.0} \
+	} 
+	Implant $IMPL
+}
+
+# ====== Annealing ======
+
+proc Annealing {} {
+	temp_ramp name= tempramp_well time= 0.19 temp= 650.0 ramprate= 36.6071
+	temp_ramp name= tempramp_well time= 0.4 temp= 1060.0 ramprate= 0.0000
+	temp_ramp name= tempramp_well time= 0.2 temp= 1060.0 ramprate=-48.8095
+	diffuse temp_ramp= tempramp_well
+}

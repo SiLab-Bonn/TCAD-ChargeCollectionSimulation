@@ -1,6 +1,6 @@
 # ===============================================================================
 #		Lib file
-#
+# Some useful functions
 #
 # ===============================================================================
 
@@ -147,7 +147,7 @@ proc OrderList {inlist} {
 
 
 proc Dimension {} {
-# Determin the dimension of simulation domain
+# Get the dimension of simulation domain
 
 	set coord [lindex [bound silicon] 0]	;# Get coordinates for silicon boundary
 											;# Not working for 3D

@@ -1,7 +1,7 @@
 #header
 # Load files
 source ./GeneralSettings.fps		;# The setting files
-source ./ProcessData.fps 			;# The process data
+source ./DemoProcData.fps 			;# The process data
 
 set AutoRefine 0
 
@@ -16,7 +16,7 @@ fset epi_doping @BulkConc@
 fset sub_height 20
 fset epi_height 18 
 fset Xmax @<pitch/2>@
-fset node @node@
+fset node @node@	;# for the "Plot", "PlotBND", and "PLX" function defined in "ProcLib.fps", to attribute the node number
 # ==Boron Doping Table==
 # - 13 Ohm		: 1.00e15
 # - 100 Ohm		: 0.12e15 
@@ -100,6 +100,8 @@ set pw_start	[expr $nw_width+$np_spec]		;# position of PW for mask
 mask name=STI           segments = {0 $sti_stop $sti_start $Xmax}   !negative 
 FormSTIandSCR
 
+# PlotBND "STI"		;# Example: uncomment this to export the boundary file after forming the STI.
+
 # Implantation for PW
 mask name=PW            segments = {$pw_start $Xmax}   !negative
 photo mask= PW thickness= 5.0
@@ -120,6 +122,7 @@ strip Photoresist
 # ---Annealing---
 Annealing
 
+# Plot "Annealing" 	;# Example: uncomment this to export the TDR file after the annealing. The TDR file contains the doping profile
 
 # ------------------
 # ---Planarisation---
@@ -145,7 +148,6 @@ transform stretch down location= 13 length= @EPI@-$epi_height
 #endif
 grid merge
 
-# WriteBND "TRANSFORM"
 
 # ===================== Remeshing =======================
 
@@ -161,7 +163,6 @@ refinebox Silicon refine.fields= {NetActive} max.asinhdiff= {NetActive=1.2}\
 refinebox remesh
 grid remesh
 
-#WriteBND "REMESH"
 # =======================================================
 
 # -- contacts
